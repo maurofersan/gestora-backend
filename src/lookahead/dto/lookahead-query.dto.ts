@@ -1,14 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsDate } from 'class-validator';
+import { IsString, Matches } from 'class-validator';
+import { WEEK_ANCHOR_ISO_DATE_PATTERN } from '../../common/planning-week/resolve-planning-week';
 
 export class LookaheadQueryDto {
   @ApiProperty({
-    type: String,
-    format: 'date-time',
-    description: 'Ancla para obtener el lookahead de esa semana',
+    example: '2026-05-11',
+    description:
+      'Ancla de semana YYYY-MM-DD civil en la zona del proyecto (`projects.timezone`). Misma regla que PPC.',
+    pattern: WEEK_ANCHOR_ISO_DATE_PATTERN.source,
   })
-  @Type(() => Date)
-  @IsDate()
-  weekAnchor: Date;
+  @IsString()
+  @Matches(WEEK_ANCHOR_ISO_DATE_PATTERN)
+  weekAnchor: string;
 }

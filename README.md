@@ -85,11 +85,11 @@ El backend normaliza con **`getWeekRangeMondaySunday`**: semana **lunes → domi
 | Reuniones | GET/POST | `/projects/:projectId/meeting-areas/:areaId/meetings` |
 | Acuerdos | GET/POST | `/projects/:projectId/meetings/:meetingId/agreements` |
 | Acuerdos | PATCH | `/projects/:projectId/agreements/:agreementId` |
-| PPC | GET | `/projects/:projectId/ppc/weeks` |
-| PPC | GET | `/projects/:projectId/ppc` (query: `specialtyId`, `weekAnchor`) |
-| PPC | POST | `/projects/:projectId/ppc/regenerate` |
-| Lookahead | GET | `/projects/:projectId/lookahead` (`weekAnchor`) |
-| Lookahead | PUT | `/projects/:projectId/lookahead` |
+| PPC | GET | `/projects/:projectId/ppc/weeks` (respuesta: `YYYY-MM-DD` por semana, TZ del proyecto) |
+| PPC | GET | `/projects/:projectId/ppc` (query: `specialtyId`, `weekAnchor`=`YYYY-MM-DD` civil en `projects.timezone`) |
+| PPC | POST | `/projects/:projectId/ppc/regenerate` (body: `specialtyId`, `weekAnchor` `YYYY-MM-DD`) |
+| Lookahead | GET | `/projects/:projectId/lookahead` (`weekAnchor` `YYYY-MM-DD`) |
+| Lookahead | PUT | `/projects/:projectId/lookahead` (body: `weekAnchor` `YYYY-MM-DD`, `items`) |
 | Dashboard | GET | `/projects/:projectId/dashboard/summary` |
 | Dashboard | GET | `/projects/:projectId/dashboard/progress-chart` |
 | Dashboard | GET | `/projects/:projectId/dashboard/ranking-fallas` |

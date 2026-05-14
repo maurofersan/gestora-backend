@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsDate, IsMongoId } from 'class-validator';
+import { IsMongoId, IsString, Matches } from 'class-validator';
+import { WEEK_ANCHOR_ISO_DATE_PATTERN } from '../../common/planning-week/resolve-planning-week';
 
 export class RegeneratePpcDto {
   @ApiProperty({ description: 'Especialidad del PPC', example: '507f1f77bcf86cd799439011' })
@@ -8,11 +8,12 @@ export class RegeneratePpcDto {
   specialtyId: string;
 
   @ApiProperty({
-    type: String,
-    format: 'date-time',
-    description: 'Cualquier fecha dentro de la semana; el backend normaliza a lunes–domingo (MVP: TZ del servidor)',
+    example: '2026-05-11',
+    description:
+      'Misma semántica que GET /ppc: YYYY-MM-DD civil en la zona del proyecto (lunes de la semana de planificación).',
+    pattern: WEEK_ANCHOR_ISO_DATE_PATTERN.source,
   })
-  @Type(() => Date)
-  @IsDate()
-  weekAnchor: Date;
+  @IsString()
+  @Matches(WEEK_ANCHOR_ISO_DATE_PATTERN)
+  weekAnchor: string;
 }
