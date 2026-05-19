@@ -23,6 +23,8 @@ import { UpdateActivityDto } from './dto/update-activity.dto';
 import { ListActivitiesQueryDto } from './dto/list-activities-query.dto';
 import { AddRestrictionDto } from './dto/add-restriction.dto';
 import { PatchNonComplianceDto } from './dto/patch-non-compliance.dto';
+import { CreateNonComplianceEventDto } from './dto/create-non-compliance-event.dto';
+import type { NonComplianceEvent } from './schemas/non-compliance-event.schema';
 
 @Injectable()
 export class ActivitiesService {
@@ -50,6 +52,153 @@ export class ActivitiesService {
     const activity = await this.activityModel.findOne({ _id: activityId, projectId }).lean().exec();
     if (!activity) throw new NotFoundException('Actividad no encontrada');
     return activity;
+  }
+
+  async listNonComplianceEvents(projectId: Types.ObjectId, activityId: Types.ObjectId) {
+    const activity = await this.get(projectId, activityId);
+    const events = activity.nonComplianceEvents ?? [];
+    return {
+      activityId: activity._id,
+      projectId: activity.projectId,
+      code: activity.code,
+      description: activity.description,
+      nonComplianceCount: events.length,
+      events: [...events].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
+    };
+  }
+
+  async getNonComplianceEvent(
+    projectId: Types.ObjectId,
+    activityId: Types.ObjectId,
+    eventId: Types.ObjectId,
+  ) {
+    const activity = await this.get(projectId, activityId);
+    const event = (activity.nonComplianceEvents ?? []).find(
+      (e) => e._id?.toString() === eventId.toString(),
+    );
+    if (!event) throw new NotFoundException('Incumplimiento no encontrado');
+    return {
+      activityId: activity._id,
+      projectId: activity.projectId,
+      code: activity.code,
+      description: activity.description,
+      workPackageId: activity.workPackageId,
+      specialtyId: activity.specialtyId,
+      event,
+    };
+  }
+
+  async createNonComplianceEvent(
+    actor: AuthenticatedUser,
+    projectId: Types.ObjectId,
+    activityId: Types.ObjectId,
+    dto: CreateNonComplianceEventDto,
+  ) {
+    const activity = await this.activityModel.findOne({ _id: activityId, projectId });
+    if (!activity) throw new NotFoundException('Actividad no encontrada');
+    this.forbidReadOnly(actor);
+    this.assertSpecialistMatches(actor, activity.specialtyId);
+
+    const event: NonComplianceEvent = {
+      _id: new Types.ObjectId(),
+      isActive: dto.isActive ?? true,
+      causesText: dto.causesText ?? null,
+      correctiveActionsText: dto.correctiveActionsText ?? null,
+      affectedWeeks: dto.affectedWeeks ?? [],
+      createdAt: new Date(),
+      createdBy: actor._id,
+    };
+
+    if (!activity.nonComplianceEvents) {
+      activity.nonComplianceEvents = [];
+    }
+    activity.nonComplianceEvents.push(event);
+    activity.updatedBy = actor._id;
+    await activity.save();
+    return this.getNonComplianceEvent(projectId, activityId, event._id);
+  }
+
+  async patchNonComplianceEvent(
+    actor: AuthenticatedUser,
+    projectId: Types.ObjectId,
+    activityId: Types.ObjectId,
+    eventId: Types.ObjectId,
+    dto: PatchNonComplianceDto,
+  ) {
+    const activity = await this.activityModel.findOne({ _id: activityId, projectId });
+    if (!activity) throw new NotFoundException('Actividad no encontrada');
+    this.forbidReadOnly(actor);
+    this.assertSpecialistMatches(actor, activity.specialtyId);
+
+    const event = activity.nonComplianceEvents?.find((e) => e._id.equals(eventId));
+    if (!event) throw new NotFoundException('Incumplimiento no encontrado');
+
+    if (dto.isActive !== undefined) event.isActive = dto.isActive;
+    if (dto.causesText !== undefined) event.causesText = dto.causesText ?? null;
+    if (dto.correctiveActionsText !== undefined) {
+      event.correctiveActionsText = dto.correctiveActionsText ?? null;
+    }
+    if (dto.affectedWeeks !== undefined) event.affectedWeeks = dto.affectedWeeks;
+
+    activity.updatedBy = actor._id;
+    await activity.save();
+    return this.getNonComplianceEvent(projectId, activityId, eventId);
+  }
+
+  /**
+   * Compatibilidad con modales legacy: actualiza el incumplimiento activo más reciente
+   * o crea uno nuevo si no hay activo.
+   */
+  async patchNonCompliance(
+    actor: AuthenticatedUser,
+    projectId: Types.ObjectId,
+    activityId: Types.ObjectId,
+    dto: PatchNonComplianceDto,
+  ) {
+    const activity = await this.activityModel.findOne({ _id: activityId, projectId });
+    if (!activity) throw new NotFoundException('Actividad no encontrada');
+    this.forbidReadOnly(actor);
+    this.assertSpecialistMatches(actor, activity.specialtyId);
+
+    if (!activity.nonComplianceEvents) {
+      activity.nonComplianceEvents = [];
+    }
+
+    let event = [...activity.nonComplianceEvents]
+      .filter((e) => e.isActive)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+    const hasPayload =
+      dto.causesText !== undefined ||
+      dto.correctiveActionsText !== undefined ||
+      dto.affectedWeeks !== undefined ||
+      dto.isActive !== undefined;
+
+    if (!event && hasPayload) {
+      event = {
+        _id: new Types.ObjectId(),
+        isActive: dto.isActive ?? true,
+        causesText: dto.causesText ?? null,
+        correctiveActionsText: dto.correctiveActionsText ?? null,
+        affectedWeeks: dto.affectedWeeks ?? [],
+        createdAt: new Date(),
+        createdBy: actor._id,
+      };
+      activity.nonComplianceEvents.push(event);
+    } else if (event) {
+      if (dto.isActive !== undefined) event.isActive = dto.isActive;
+      if (dto.causesText !== undefined) event.causesText = dto.causesText ?? null;
+      if (dto.correctiveActionsText !== undefined) {
+        event.correctiveActionsText = dto.correctiveActionsText ?? null;
+      }
+      if (dto.affectedWeeks !== undefined) event.affectedWeeks = dto.affectedWeeks;
+    }
+
+    activity.updatedBy = actor._id;
+    await activity.save();
+    return activity.toObject();
   }
 
   async create(actor: AuthenticatedUser, projectId: Types.ObjectId, dto: CreateActivityDto) {
@@ -100,12 +249,7 @@ export class ActivitiesService {
       status: workflow,
       statusColor,
       restrictions: [],
-      nonCompliance: {
-        isActive: false,
-        causesText: null,
-        correctiveActionsText: null,
-        affectedWeeks: [],
-      },
+      nonComplianceEvents: [],
       evidenceCount: 0,
       updatedBy: actor._id,
     });
@@ -166,28 +310,6 @@ export class ActivitiesService {
       createdAt: new Date(),
       createdBy: actor._id,
     });
-    activity.updatedBy = actor._id;
-    await activity.save();
-    return activity.toObject();
-  }
-
-  async patchNonCompliance(
-    actor: AuthenticatedUser,
-    projectId: Types.ObjectId,
-    activityId: Types.ObjectId,
-    dto: PatchNonComplianceDto,
-  ) {
-    const activity = await this.activityModel.findOne({ _id: activityId, projectId });
-    if (!activity) throw new NotFoundException('Actividad no encontrada');
-    this.forbidReadOnly(actor);
-    this.assertSpecialistMatches(actor, activity.specialtyId);
-
-    if (dto.isActive !== undefined) activity.nonCompliance.isActive = dto.isActive;
-    if (dto.causesText !== undefined) activity.nonCompliance.causesText = dto.causesText ?? null;
-    if (dto.correctiveActionsText !== undefined)
-      activity.nonCompliance.correctiveActionsText = dto.correctiveActionsText ?? null;
-    if (dto.affectedWeeks) activity.nonCompliance.affectedWeeks = dto.affectedWeeks;
-
     activity.updatedBy = actor._id;
     await activity.save();
     return activity.toObject();

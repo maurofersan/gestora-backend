@@ -74,22 +74,12 @@ export class DashboardService {
         { $match: { projectId } },
         {
           $addFields: {
-            affectedLen: { $size: { $ifNull: ['$nonCompliance.affectedWeeks', []] } },
-            redBoost: { $cond: [{ $eq: ['$statusColor', ActivityStatusColor.RED] }, 5, 0] },
+            nonComplianceCount: { $size: { $ifNull: ['$nonComplianceEvents', []] } },
+            isRed: { $eq: ['$statusColor', ActivityStatusColor.RED] },
           },
         },
-        {
-          $addFields: {
-            score: {
-              $sum: [
-                '$affectedLen',
-                '$redBoost',
-                { $cond: [{ $eq: ['$nonCompliance.isActive', true] }, 3, 0] },
-              ],
-            },
-          },
-        },
-        { $sort: { score: -1 } },
+        { $match: { nonComplianceCount: { $gt: 0 } } },
+        { $sort: { nonComplianceCount: -1, isRed: -1, code: 1 } },
         { $limit: limit },
         {
           $project: {
@@ -98,8 +88,8 @@ export class DashboardService {
             statusColor: 1,
             workPackageId: 1,
             specialtyId: 1,
-            nonCompliance: 1,
-            score: 1,
+            nonComplianceCount: 1,
+            nonComplianceEvents: 1,
           },
         },
       ])

@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Activity, ActivitySchema } from './schemas/activity.schema';
 import { ActivitiesService } from './activities.service';
 import { ActivitiesController } from './activities.controller';
+import { ActivitiesNonComplianceMigrationService } from './activities-non-compliance-migration.service';
 import { WorkPackage, WorkPackageSchema } from '../work-packages/schemas/work-package.schema';
 import { Sector, SectorSchema } from '../sectors/schemas/sector.schema';
 
@@ -15,7 +16,7 @@ import { Sector, SectorSchema } from '../sectors/schemas/sector.schema';
     ]),
   ],
   controllers: [ActivitiesController],
-  providers: [ActivitiesService],
+  providers: [ActivitiesService, ActivitiesNonComplianceMigrationService],
   exports: [ActivitiesService, MongooseModule],
 })
 export class ActivitiesModule {}

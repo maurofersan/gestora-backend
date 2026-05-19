@@ -41,38 +41,14 @@ export class ActivityRestriction {
   createdBy: Types.ObjectId;
 }
 
-@Schema({ _id: false })
-export class AffectedWeekSlice {
-  @Prop({ required: true })
-  weekStart: Date;
-
-  @Prop({ required: true })
-  weekEnd: Date;
-
-  @Prop({ enum: ActivityStatusColor, required: true })
-  color: ActivityStatusColor;
-}
-
-@Schema({ _id: false })
-export class NonComplianceBlock {
-  @Prop({ default: false })
-  isActive: boolean;
-
-  @Prop({ type: String, default: null })
-  causesText: string | null;
-
-  /** Medida correctiva (document.md). */
-  @Prop({ type: String, default: null })
-  correctiveActionsText: string | null;
-
-  @Prop({ type: [AffectedWeekSlice], default: [] })
-  affectedWeeks: AffectedWeekSlice[];
-}
+import {
+  NonComplianceEvent,
+  NonComplianceEventSchema,
+} from './non-compliance-event.schema';
 
 const PlannedWindowSchema = SchemaFactory.createForClass(PlannedWindow);
 const ActualWindowSchema = SchemaFactory.createForClass(ActualWindow);
 const RestrictionSchema = SchemaFactory.createForClass(ActivityRestriction);
-const NonComplianceSchema = SchemaFactory.createForClass(NonComplianceBlock);
 
 @Schema({ timestamps: true, collection: 'activities' })
 export class Activity {
@@ -109,16 +85,8 @@ export class Activity {
   @Prop({ type: [RestrictionSchema], default: [] })
   restrictions: ActivityRestriction[];
 
-  @Prop({
-    type: NonComplianceSchema,
-    default: () => ({
-      isActive: false,
-      causesText: null,
-      correctiveActionsText: null,
-      affectedWeeks: [],
-    }),
-  })
-  nonCompliance: NonComplianceBlock;
+  @Prop({ type: [NonComplianceEventSchema], default: [] })
+  nonComplianceEvents: NonComplianceEvent[];
 
   @Prop({ default: 0 })
   evidenceCount: number;
