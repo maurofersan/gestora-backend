@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -15,6 +16,8 @@ import { CreateEvidenceDto } from './dto/create-evidence.dto';
 
 @Injectable()
 export class EvidenceService {
+  private readonly logger = new Logger(EvidenceService.name);
+
   constructor(
     @InjectModel(ActivityEvidence.name)
     private readonly evidenceModel: Model<ActivityEvidenceDocument>,
@@ -74,8 +77,18 @@ export class EvidenceService {
     }
 
     const publicIds = collectCloudinaryPublicIdsFromUrls(evidence.url, evidence.thumbUrl);
-    if (publicIds.length > 0) {
-      await this.cloudinaryAssets.destroyByPublicIds(publicIds);
+    if (publicIds.length === 0) {
+      this.logger.warn(
+        `Evidencia ${evidenceId.toString()}: URL no parseable como Cloudinary; solo se borra MongoDB`,
+      );
+    } else {
+      const results = await this.cloudinaryAssets.destroyByPublicIds(publicIds);
+      const failed = results.filter((r) => r.outcome === 'not_found');
+      if (failed.length > 0) {
+        this.logger.warn(
+          `Evidencia ${evidenceId.toString()}: Cloudinary not found para public_id=${failed.map((r) => r.publicId).join(', ')}`,
+        );
+      }
     }
 
     await this.evidenceModel.deleteOne({ _id: evidence._id }).exec();

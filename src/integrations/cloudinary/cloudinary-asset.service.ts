@@ -49,7 +49,9 @@ export class CloudinaryAssetService {
       });
 
       const outcome = this.mapDestroyResult(response.result);
-      if (outcome === 'not_found') {
+      if (outcome === 'ok') {
+        this.logger.log(`Cloudinary asset eliminado (public_id=${publicId})`);
+      } else if (outcome === 'not_found') {
         this.logger.warn(`Cloudinary asset no encontrado (public_id=${publicId})`);
       }
       return { publicId, outcome };
