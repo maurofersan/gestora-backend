@@ -1,5 +1,15 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiBearerJwt } from '../common/swagger/api-bearer-jwt.decorator';
 import { EvidenceService } from './evidence.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -36,6 +46,24 @@ export class EvidenceController {
       new Types.ObjectId(projectId),
       new Types.ObjectId(activityId),
       dto,
+    );
+  }
+
+  @Delete(':evidenceId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Eliminar evidencia (MongoDB + Cloudinary, best-effort)' })
+  @ApiNoContentResponse({ description: 'Evidencia eliminada' })
+  remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId') projectId: string,
+    @Param('activityId') activityId: string,
+    @Param('evidenceId') evidenceId: string,
+  ) {
+    return this.evidenceService.remove(
+      user,
+      new Types.ObjectId(projectId),
+      new Types.ObjectId(activityId),
+      new Types.ObjectId(evidenceId),
     );
   }
 }

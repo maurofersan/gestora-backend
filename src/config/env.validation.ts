@@ -6,5 +6,8 @@ export const envValidationSchema = Joi.object({
   MONGODB_DATABASE: Joi.string().default('gestora'),
   JWT_SECRET: Joi.string().min(16).required(),
   JWT_EXPIRES_IN: Joi.string().default('7d'),
+  CLOUDINARY_CLOUD_NAME: Joi.string().allow('').optional(),
+  CLOUDINARY_API_KEY: Joi.string().allow('').optional(),
+  CLOUDINARY_API_SECRET: Joi.string().allow('').optional(),
   SETUP_SECRET: Joi.string().allow('').optional(),
 });

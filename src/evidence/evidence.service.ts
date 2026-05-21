@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { CloudinaryAssetService } from '../integrations/cloudinary/cloudinary-asset.service';
+import { collectCloudinaryPublicIdsFromUrls } from '../integrations/cloudinary/extract-public-id.util';
 import { ActivityEvidence, ActivityEvidenceDocument } from './schemas/activity-evidence.schema';
 import { Activity, ActivityDocument } from '../activities/schemas/activity.schema';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
@@ -17,6 +19,7 @@ export class EvidenceService {
     @InjectModel(ActivityEvidence.name)
     private readonly evidenceModel: Model<ActivityEvidenceDocument>,
     @InjectModel(Activity.name) private readonly activityModel: Model<ActivityDocument>,
+    private readonly cloudinaryAssets: CloudinaryAssetService,
   ) {}
 
   async list(projectId: Types.ObjectId, activityId: Types.ObjectId) {
@@ -35,7 +38,7 @@ export class EvidenceService {
     dto: CreateEvidenceDto,
   ) {
     const activity = await this.ensureActivity(projectId, activityId);
-    this.assertUploader(actor, activity.specialtyId);
+    this.assertEvidenceMutator(actor, activity.specialtyId);
 
     const doc = await this.evidenceModel.create({
       projectId,
@@ -54,19 +57,47 @@ export class EvidenceService {
     return doc.toObject();
   }
 
+  async remove(
+    actor: AuthenticatedUser,
+    projectId: Types.ObjectId,
+    activityId: Types.ObjectId,
+    evidenceId: Types.ObjectId,
+  ): Promise<void> {
+    const activity = await this.ensureActivity(projectId, activityId);
+    this.assertEvidenceMutator(actor, activity.specialtyId);
+
+    const evidence = await this.evidenceModel
+      .findOne({ _id: evidenceId, projectId, activityId })
+      .exec();
+    if (!evidence) {
+      throw new NotFoundException('Evidencia no encontrada');
+    }
+
+    const publicIds = collectCloudinaryPublicIdsFromUrls(evidence.url, evidence.thumbUrl);
+    if (publicIds.length > 0) {
+      await this.cloudinaryAssets.destroyByPublicIds(publicIds);
+    }
+
+    await this.evidenceModel.deleteOne({ _id: evidence._id }).exec();
+    await this.activityModel.updateOne(
+      { _id: activityId, evidenceCount: { $gt: 0 } },
+      { $inc: { evidenceCount: -1 } },
+    );
+  }
+
   private async ensureActivity(projectId: Types.ObjectId, activityId: Types.ObjectId) {
     const activity = await this.activityModel.findOne({ _id: activityId, projectId }).exec();
     if (!activity) throw new NotFoundException('Actividad no encontrada');
     return activity;
   }
 
-  private assertUploader(actor: AuthenticatedUser, specialtyId: Types.ObjectId) {
+  private assertEvidenceMutator(actor: AuthenticatedUser, specialtyId: Types.ObjectId) {
     if (
       actor.role === UserRole.GERENTE ||
       actor.role === UserRole.RESIDENTE ||
       actor.role === UserRole.CLIENTE
     ) {
-      throw new ForbiddenException('Solo empresa puede subir evidencias');
+      throw new ForbiddenException('Solo empresa puede gestionar evidencias');
     }
     if (actor.role === UserRole.ULTIMO_PLANIFICADOR) return;
     if (actor.role === UserRole.ESPECIALISTA) {
