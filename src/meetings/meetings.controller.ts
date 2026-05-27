@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { MeetingListItemDto } from './dto/meeting-list-item.dto';
 import { ApiBearerJwt } from '../common/swagger/api-bearer-jwt.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ProjectAccessGuard } from '../common/guards/project-access.guard';
@@ -28,6 +29,7 @@ export class MeetingsController {
 
   @Get()
   @Roles(...EMPRESA_VER_COMPROMISOS)
+  @ApiOkResponse({ type: MeetingListItemDto, isArray: true })
   list(@Param('projectId') projectId: string, @Param('areaId') areaId: string) {
     return this.meetingsService.list(new Types.ObjectId(projectId), new Types.ObjectId(areaId));
   }

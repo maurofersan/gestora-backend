@@ -6,6 +6,7 @@ import { Agreement, AgreementSchema } from './schemas/agreement.schema';
 import { MeetingAreasService } from './meeting-areas.service';
 import { MeetingsService } from './meetings.service';
 import { AgreementsService } from './agreements.service';
+import { AgreementCountsService } from './agreement-counts.service';
 import { MeetingAreasController } from './meeting-areas.controller';
 import { MeetingsController } from './meetings.controller';
 import { AgreementsController, AgreementPatchController } from './agreements.controller';
@@ -19,6 +20,6 @@ import { AgreementsController, AgreementPatchController } from './agreements.con
     ]),
   ],
   controllers: [MeetingAreasController, MeetingsController, AgreementsController, AgreementPatchController],
-  providers: [MeetingAreasService, MeetingsService, AgreementsService],
+  providers: [AgreementCountsService, MeetingAreasService, MeetingsService, AgreementsService],
 })
 export class MeetingsModule {}

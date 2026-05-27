@@ -81,8 +81,8 @@ El backend normaliza con **`getWeekRangeMondaySunday`**: semana **lunes → domi
 | Actividades | PATCH | `.../activities/:activityId/non-compliance` |
 | Evidencias | GET/POST | `/projects/:projectId/activities/:activityId/evidence` |
 | Urgencias | GET/POST/PATCH | `/projects/:projectId/duties` … |
-| Áreas reunión | GET/POST | `/projects/:projectId/meeting-areas` |
-| Reuniones | GET/POST | `/projects/:projectId/meeting-areas/:areaId/meetings` |
+| Áreas reunión | GET/POST | `/projects/:projectId/meeting-areas` (GET incluye `pendingAgreementsCount`) |
+| Reuniones | GET/POST | `/projects/:projectId/meeting-areas/:areaId/meetings` (GET incluye `agreementsTotal`, `agreementsPending`) |
 | Acuerdos | GET/POST | `/projects/:projectId/meetings/:meetingId/agreements` |
 | Acuerdos | PATCH | `/projects/:projectId/agreements/:agreementId` |
 | PPC | GET | `/projects/:projectId/ppc/weeks` (respuesta: `YYYY-MM-DD` por semana, TZ del proyecto) |
