@@ -3,9 +3,10 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Duty, DutySchema } from './schemas/duty.schema';
 import { DutiesService } from './duties.service';
 import { DutiesController } from './duties.controller';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: Duty.name, schema: DutySchema }])],
+  imports: [NotificationsModule, MongooseModule.forFeature([{ name: Duty.name, schema: DutySchema }])],
   controllers: [DutiesController],
   providers: [DutiesService],
 })

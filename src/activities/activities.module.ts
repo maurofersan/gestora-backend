@@ -6,9 +6,11 @@ import { ActivitiesController } from './activities.controller';
 import { ActivitiesNonComplianceMigrationService } from './activities-non-compliance-migration.service';
 import { WorkPackage, WorkPackageSchema } from '../work-packages/schemas/work-package.schema';
 import { Sector, SectorSchema } from '../sectors/schemas/sector.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
+    NotificationsModule,
     MongooseModule.forFeature([
       { name: Activity.name, schema: ActivitySchema },
       { name: WorkPackage.name, schema: WorkPackageSchema },

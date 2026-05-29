@@ -10,4 +10,7 @@ export const envValidationSchema = Joi.object({
   CLOUDINARY_API_KEY: Joi.string().allow('').optional(),
   CLOUDINARY_API_SECRET: Joi.string().allow('').optional(),
   SETUP_SECRET: Joi.string().allow('').optional(),
+  EXPO_ACCESS_TOKEN: Joi.string().allow('').optional(),
+  NOTIFICATION_CRON_ENABLED: Joi.string().valid('true', 'false').default('true'),
+  NOTIFICATION_DUE_SOON_HOURS: Joi.number().default(48),
 });

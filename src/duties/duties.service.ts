@@ -8,10 +8,14 @@ import { UserType } from '../common/enums/user-type.enum';
 import { DutyStatus } from '../common/enums/duty-status.enum';
 import { CreateDutyDto } from './dto/create-duty.dto';
 import { UpdateDutyDto } from './dto/update-duty.dto';
+import { DutyNotificationListener } from '../notifications/notification-listeners.service';
 
 @Injectable()
 export class DutiesService {
-  constructor(@InjectModel(Duty.name) private readonly dutyModel: Model<DutyDocument>) {}
+  constructor(
+    @InjectModel(Duty.name) private readonly dutyModel: Model<DutyDocument>,
+    private readonly dutyNotifications: DutyNotificationListener,
+  ) {}
 
   list(projectId: Types.ObjectId) {
     return this.dutyModel.find({ projectId }).sort({ createdAt: -1 }).lean().exec();
@@ -31,7 +35,9 @@ export class DutiesService {
       resolvedAt: null,
       resolvedByUserId: null,
     });
-    return duty.toObject();
+    const created = duty.toObject();
+    void this.dutyNotifications.onDutyCreated(duty, actor);
+    return created;
   }
 
   async update(actor: AuthenticatedUser, projectId: Types.ObjectId, dutyId: Types.ObjectId, dto: UpdateDutyDto) {
@@ -43,6 +49,7 @@ export class DutiesService {
       (actor.type === UserType.CLIENT && actor.role === UserRole.CLIENTE);
     if (!allowed) throw new ForbiddenException('No puedes actualizar urgencias');
 
+    const previousStatus = duty.status;
     duty.status = dto.status;
     if (dto.status === DutyStatus.RESOLVED) {
       duty.resolvedAt = new Date();
@@ -52,6 +59,7 @@ export class DutiesService {
       duty.resolvedByUserId = null;
     }
     await duty.save();
+    void this.dutyNotifications.onDutyUpdated(duty, actor._id, previousStatus);
     return duty.toObject();
   }
 }

@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+import { NotificationType } from '../../common/enums/notification-type.enum';
 
 export type NotificationDocument = HydratedDocument<Notification>;
 
@@ -11,8 +12,8 @@ export class Notification {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   toUserId: Types.ObjectId;
 
-  @Prop({ required: true })
-  type: string;
+  @Prop({ enum: NotificationType, required: true })
+  type: NotificationType;
 
   @Prop({ required: true })
   title: string;
@@ -24,15 +25,17 @@ export class Notification {
     type: {
       activityId: { type: Types.ObjectId, ref: 'Activity', required: false },
       dutyId: { type: Types.ObjectId, ref: 'Duty', required: false },
-      meetingId: { type: Types.ObjectId, ref: 'Meeting', required: false },
     },
     default: {},
   })
   data: {
     activityId?: Types.ObjectId;
     dutyId?: Types.ObjectId;
-    meetingId?: Types.ObjectId;
   };
+
+  /** Evita duplicar la misma alerta al mismo usuario (cron / transiciones). */
+  @Prop({ type: String, default: null })
+  dedupeKey: string | null;
 
   @Prop({ type: Date, default: null })
   readAt: Date | null;
@@ -40,3 +43,4 @@ export class Notification {
 
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
 NotificationSchema.index({ toUserId: 1, readAt: 1, createdAt: -1 });
+NotificationSchema.index({ dedupeKey: 1 }, { unique: true, sparse: true });

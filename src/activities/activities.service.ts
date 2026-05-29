@@ -21,6 +21,7 @@ import { addCalendarDays } from '../common/utils/date.util';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { ListActivitiesQueryDto } from './dto/list-activities-query.dto';
+import { ActivityNotificationListener } from '../notifications/notification-listeners.service';
 import { AddRestrictionDto } from './dto/add-restriction.dto';
 import { PatchNonComplianceDto } from './dto/patch-non-compliance.dto';
 import { CreateNonComplianceEventDto } from './dto/create-non-compliance-event.dto';
@@ -33,6 +34,7 @@ export class ActivitiesService {
     @InjectModel(WorkPackage.name)
     private readonly workPackageModel: Model<WorkPackageDocument>,
     @InjectModel(Sector.name) private readonly sectorModel: Model<SectorDocument>,
+    private readonly activityNotifications: ActivityNotificationListener,
   ) {}
 
   async list(projectId: Types.ObjectId, query: ListActivitiesQueryDto) {
@@ -268,6 +270,9 @@ export class ActivitiesService {
     this.forbidReadOnly(actor);
     this.assertSpecialistMatches(actor, activity.specialtyId);
 
+    const previousStatus = activity.status;
+    const previousStatusColor = activity.statusColor;
+
     if (dto.description !== undefined) activity.description = dto.description;
 
     if (dto.plannedStart !== undefined || dto.plannedDurationDays !== undefined) {
@@ -291,6 +296,13 @@ export class ActivitiesService {
     activity.statusColor = computeActivityStatusColor(activity.status, activity.planned.end);
     activity.updatedBy = actor._id;
     await activity.save();
+
+    this.activityNotifications.onActivityUpdated(activity, {
+      previousStatus,
+      previousStatusColor,
+      actorId: actor._id,
+    });
+
     return activity.toObject();
   }
 

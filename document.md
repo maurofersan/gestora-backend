@@ -83,6 +83,13 @@ Estados de actividad:
 
 ---
 
+notifications:
+
+notificar actividad por teminar, urgencias agregadas o actualizadas,
+tambien actividades culminadas y si esta atrasada.
+
+---
+
 MongoDB Atlas:
 
 - Usa variables de entorno en `.env` (no subir credenciales al repo). Copia `.env.example` → `.env`.

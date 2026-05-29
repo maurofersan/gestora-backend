@@ -93,8 +93,9 @@ El backend normaliza con **`getWeekRangeMondaySunday`**: semana **lunes → domi
 | Dashboard | GET | `/projects/:projectId/dashboard/summary` |
 | Dashboard | GET | `/projects/:projectId/dashboard/progress-chart` |
 | Dashboard | GET | `/projects/:projectId/dashboard/ranking-fallas` |
-| Notificaciones | GET | `/me/notifications` |
-| Notificaciones | PATCH | `/me/notifications/:notificationId/read` |
+| Notificaciones | GET | `/me/notifications`, `/me/notifications/unread-count` |
+| Notificaciones | PATCH | `/me/notifications/:notificationId/read`, `/me/notifications/read-all` |
+| Notificaciones | PUT | `/me/push-token` (registrar Expo Push Token) |
 | Cronograma | GET/POST | `/projects/:projectId/schedule-uploads` |
 
 Cabecera típica: `Authorization: Bearer <access_token>`.
