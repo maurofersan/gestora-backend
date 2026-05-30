@@ -36,6 +36,7 @@ Prefijo global: **`/api/v1`**.
    - `MONGODB_DATABASE` — por defecto `gestora`.
    - `JWT_SECRET` — **mínimo 16 caracteres** (validado al arrancar).
    - `JWT_EXPIRES_IN` — ej. `7d`.
+   - `RESEND_API_KEY` + `EMAIL_FROM` — para **olvidé contraseña** (usuarios de empresa). Sin ellos, la temporal se genera pero no se envía email (ver logs).
 
 ```bash
 npm install
@@ -64,9 +65,12 @@ El backend normaliza con **`getWeekRangeMondaySunday`**: semana **lunes → domi
 |------|--------|------|
 | Setup | POST | `/setup/bootstrap` |
 | Auth | POST | `/auth/login` |
+| Auth | POST | `/auth/forgot-password` (solo usuarios `type: company`; respuesta genérica) |
 | Usuario | GET | `/users/me` |
+| Usuario | PATCH | `/users/me/password` (cambio propio; permitido con `mustChangePassword`) |
 | Usuario | POST | `/users` (último planificador) |
 | Usuario | GET | `/users/by-project/:projectId` |
+| Usuario | PATCH | `/users/:userId/reset-password` (solo último planificador; devuelve `temporaryPassword`) |
 | Empresa | POST | `/companies` |
 | Empresa | GET | `/companies/:companyId` |
 | Proyectos | GET | `/projects` |

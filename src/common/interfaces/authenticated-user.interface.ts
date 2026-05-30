@@ -11,5 +11,6 @@ export interface AuthenticatedUser {
   companyId: Types.ObjectId | null;
   specialtyId: Types.ObjectId | null;
   projectIds: Types.ObjectId[];
+  mustChangePassword: boolean;
   passwordHash?: string;
 }

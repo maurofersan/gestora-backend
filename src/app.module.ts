@@ -6,6 +6,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { envValidationSchema } from './config/env.validation';
 import { CoreModule } from './core/core.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { MustChangePasswordGuard } from './common/guards/must-change-password.guard';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -61,6 +62,9 @@ import { SetupModule } from './setup/setup.module';
     ScheduleUploadsModule,
   ],
   controllers: [AppController],
-  providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: MustChangePasswordGuard },
+  ],
 })
 export class AppModule {}

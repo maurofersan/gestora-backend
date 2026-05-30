@@ -6,16 +6,19 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import { UserRole } from '../common/enums/user-role.enum';
 import { UserType } from '../common/enums/user-type.enum';
+import { PasswordCredentialsService } from './password-credentials.service';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private readonly userModel: Model<UserDocument>) {}
+  constructor(
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    private readonly passwordCredentials: PasswordCredentialsService,
+  ) {}
 
   async findSafeById(id: string): Promise<AuthenticatedUser | null> {
     if (!Types.ObjectId.isValid(id)) return null;
@@ -33,7 +36,7 @@ export class UsersService {
   }
 
   async validatePassword(user: UserDocument, password: string): Promise<boolean> {
-    return bcrypt.compare(password, user.passwordHash);
+    return this.passwordCredentials.compare(password, user.passwordHash);
   }
 
   async createByPlanner(actor: AuthenticatedUser, dto: CreateUserDto): Promise<AuthenticatedUser> {
@@ -46,7 +49,7 @@ export class UsersService {
     const exists = await this.userModel.exists({ email: dto.email.toLowerCase() });
     if (exists) throw new ConflictException('Email ya registrado');
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await this.passwordCredentials.hash(dto.password);
     const projectIds = (dto.projectIds ?? []).map((id) => new Types.ObjectId(id));
 
     const created = await this.userModel.create({
@@ -86,6 +89,7 @@ export class UsersService {
       companyId: doc.companyId,
       specialtyId: doc.specialtyId,
       projectIds: doc.projectIds ?? [],
+      mustChangePassword: doc.mustChangePassword ?? false,
     };
   }
 }

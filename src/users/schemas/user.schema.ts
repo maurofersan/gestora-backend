@@ -40,6 +40,10 @@ export class User {
 
   @Prop({ type: Date, default: null })
   lastLoginAt: Date | null;
+
+  /** Tras reset / olvidé contraseña: obliga cambio en la app antes de usar el resto de la API. */
+  @Prop({ type: Boolean, default: false })
+  mustChangePassword: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
