@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ActivityStatusColor } from '../common/enums/activity-color.enum';
@@ -12,6 +12,8 @@ import { NotificationDispatchService } from './notification-dispatch.service';
 
 @Injectable()
 export class ActivityNotificationListener {
+  private readonly logger = new Logger(ActivityNotificationListener.name);
+
   constructor(
     private readonly audience: NotificationAudienceService,
     private readonly dispatch: NotificationDispatchService,
@@ -33,8 +35,9 @@ export class ActivityNotificationListener {
       context.previousStatus !== ActivityWorkflowStatus.DONE &&
       activity.status === ActivityWorkflowStatus.DONE
     ) {
-      void this.audience.allUsersOnProject(projectId, { excludeUserIds: [context.actorId] }).then(
-        (recipients) => {
+      void this.audience
+        .allUsersOnProject(projectId, { excludeUserIds: [context.actorId] })
+        .then((recipients) => {
           this.dispatch.dispatchAsync({
             projectId,
             toUserIds: recipients,
@@ -44,8 +47,13 @@ export class ActivityNotificationListener {
             data: { activityId },
             dedupeKeyBase: `activity_completed:${activityId.toString()}`,
           });
-        },
-      );
+        })
+        .catch((error) => {
+          this.logger.error(
+            'activity_completed listener failed',
+            error instanceof Error ? error.stack : error,
+          );
+        });
       return;
     }
 
@@ -66,6 +74,12 @@ export class ActivityNotificationListener {
             data: { activityId },
             dedupeKeyBase: `activity_overdue:${activityId.toString()}`,
           });
+        })
+        .catch((error) => {
+          this.logger.error(
+            'activity_overdue listener failed',
+            error instanceof Error ? error.stack : error,
+          );
         });
     }
   }
@@ -73,6 +87,8 @@ export class ActivityNotificationListener {
 
 @Injectable()
 export class DutyNotificationListener {
+  private readonly logger = new Logger(DutyNotificationListener.name);
+
   constructor(
     private readonly audience: NotificationAudienceService,
     private readonly dispatch: NotificationDispatchService,
@@ -105,6 +121,13 @@ export class DutyNotificationListener {
     const uniqueRecipients = [...new Set(recipients.map((id) => id.toString()))].map(
       (id) => new Types.ObjectId(id),
     );
+
+    if (uniqueRecipients.length === 0) {
+      this.logger.warn(
+        `duty_created: no recipients for project ${projectId.toString()} (actor ${actor._id.toString()})`,
+      );
+      return;
+    }
 
     this.dispatch.dispatchAsync({
       projectId,
@@ -139,6 +162,13 @@ export class DutyNotificationListener {
     const uniqueRecipients = [...new Set(recipients.map((id) => id.toString()))].map(
       (id) => new Types.ObjectId(id),
     );
+
+    if (uniqueRecipients.length === 0) {
+      this.logger.warn(
+        `duty_updated: no recipients for project ${projectId.toString()} (actor ${actorId.toString()})`,
+      );
+      return;
+    }
 
     this.dispatch.dispatchAsync({
       projectId,

@@ -25,6 +25,13 @@ export type DispatchNotificationInput = {
 export class NotificationDispatchService {
   private readonly logger = new Logger(NotificationDispatchService.name);
 
+  /** Cron / transiciones de actividad: siempre llevan dedupeKey por usuario. */
+  private static readonly TYPES_REQUIRING_DEDUPE = new Set<NotificationType>([
+    NotificationType.ACTIVITY_DUE_SOON,
+    NotificationType.ACTIVITY_OVERDUE,
+    NotificationType.ACTIVITY_COMPLETED,
+  ]);
+
   constructor(
     @InjectModel(Notification.name)
     private readonly notificationModel: Model<NotificationDocument>,
@@ -33,17 +40,28 @@ export class NotificationDispatchService {
   ) {}
 
   async dispatch(input: DispatchNotificationInput): Promise<void> {
+    if (
+      NotificationDispatchService.TYPES_REQUIRING_DEDUPE.has(input.type) &&
+      !input.dedupeKeyBase
+    ) {
+      this.logger.error(`Notification ${input.type} requires dedupeKeyBase`);
+      return;
+    }
+
     const uniqueUserIds = [...new Set(input.toUserIds.map((id) => id.toString()))].map(
       (id) => new Types.ObjectId(id),
     );
-    if (uniqueUserIds.length === 0) return;
+    if (uniqueUserIds.length === 0) {
+      this.logger.warn(`Notification skipped (${input.type}): no recipients`);
+      return;
+    }
 
     const createdDocs: NotificationDocument[] = [];
 
     for (const toUserId of uniqueUserIds) {
       const dedupeKey = input.dedupeKeyBase
         ? `${input.dedupeKeyBase}:${toUserId.toString()}`
-        : null;
+        : undefined;
 
       if (dedupeKey) {
         const exists = await this.notificationModel.exists({ dedupeKey }).exec();
@@ -58,17 +76,25 @@ export class NotificationDispatchService {
           title: input.title,
           body: input.body,
           data: input.data ?? {},
-          dedupeKey,
+          ...(dedupeKey ? { dedupeKey } : {}),
           readAt: null,
         });
         createdDocs.push(doc);
       } catch (error) {
-        if (this.isDuplicateKeyError(error)) continue;
+        if (this.isDuplicateKeyError(error)) {
+          this.logger.warn(
+            `Notification duplicate key (${input.type}, user ${toUserId.toString()})`,
+          );
+          continue;
+        }
         throw error;
       }
     }
 
-    if (createdDocs.length === 0) return;
+    if (createdDocs.length === 0) {
+      this.logger.warn(`Notification skipped (${input.type}): no documents created`);
+      return;
+    }
 
     const tokensByUser = await this.pushDevices.tokensByUserMap(
       createdDocs.map((doc) => doc.toUserId),

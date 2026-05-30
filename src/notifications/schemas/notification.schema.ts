@@ -34,8 +34,8 @@ export class Notification {
   };
 
   /** Evita duplicar la misma alerta al mismo usuario (cron / transiciones). */
-  @Prop({ type: String, default: null })
-  dedupeKey: string | null;
+  @Prop({ type: String, required: false })
+  dedupeKey?: string;
 
   @Prop({ type: Date, default: null })
   readAt: Date | null;
@@ -43,4 +43,10 @@ export class Notification {
 
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
 NotificationSchema.index({ toUserId: 1, readAt: 1, createdAt: -1 });
-NotificationSchema.index({ dedupeKey: 1 }, { unique: true, sparse: true });
+NotificationSchema.index(
+  { dedupeKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { dedupeKey: { $exists: true, $type: 'string' } },
+  },
+);

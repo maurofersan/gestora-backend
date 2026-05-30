@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Duty, DutyDocument } from './schemas/duty.schema';
@@ -12,6 +12,8 @@ import { DutyNotificationListener } from '../notifications/notification-listener
 
 @Injectable()
 export class DutiesService {
+  private readonly logger = new Logger(DutiesService.name);
+
   constructor(
     @InjectModel(Duty.name) private readonly dutyModel: Model<DutyDocument>,
     private readonly dutyNotifications: DutyNotificationListener,
@@ -36,7 +38,9 @@ export class DutiesService {
       resolvedByUserId: null,
     });
     const created = duty.toObject();
-    void this.dutyNotifications.onDutyCreated(duty, actor);
+    this.dutyNotifications.onDutyCreated(duty, actor).catch((error) => {
+      this.logger.error('duty_created listener failed', error instanceof Error ? error.stack : error);
+    });
     return created;
   }
 
@@ -59,7 +63,9 @@ export class DutiesService {
       duty.resolvedByUserId = null;
     }
     await duty.save();
-    void this.dutyNotifications.onDutyUpdated(duty, actor._id, previousStatus);
+    this.dutyNotifications.onDutyUpdated(duty, actor._id, previousStatus).catch((error) => {
+      this.logger.error('duty_updated listener failed', error instanceof Error ? error.stack : error);
+    });
     return duty.toObject();
   }
 }
