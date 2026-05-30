@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Types } from 'mongoose';
 import { ActivityStatusColor } from '../common/enums/activity-color.enum';
 import { ActivityWorkflowStatus } from '../common/enums/activity-workflow.enum';
 import { NotificationType } from '../common/enums/notification-type.enum';
@@ -9,6 +8,11 @@ import type { ActivityDocument } from '../activities/schemas/activity.schema';
 import type { DutyDocument } from '../duties/schemas/duty.schema';
 import { NotificationAudienceService } from './notification-audience.service';
 import { NotificationDispatchService } from './notification-dispatch.service';
+
+function excludeActor(userIds: Types.ObjectId[], actorId: Types.ObjectId): Types.ObjectId[] {
+  const actorKey = actorId.toString();
+  return userIds.filter((id) => id != null && id.toString() !== actorKey);
+}
 
 @Injectable()
 export class ActivityNotificationListener {
@@ -153,11 +157,10 @@ export class DutyNotificationListener {
 
     const planners = await this.audience.planificadoresOnProject(projectId);
     const clientId = await this.audience.clientUserId(projectId);
-    const recipients = [
-      ...planners,
-      ...(clientId ? [clientId] : []),
-      duty.createdByUserId,
-    ].filter((id) => !id.equals(actorId));
+    const recipients = excludeActor(
+      [...planners, ...(clientId ? [clientId] : []), duty.createdByUserId],
+      actorId,
+    );
 
     const uniqueRecipients = [...new Set(recipients.map((id) => id.toString()))].map(
       (id) => new Types.ObjectId(id),
