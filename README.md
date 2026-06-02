@@ -101,6 +101,8 @@ El backend normaliza con **`getWeekRangeMondaySunday`**: semana **lunes → domi
 | Notificaciones | PATCH | `/me/notifications/:notificationId/read`, `/me/notifications/read-all` |
 | Notificaciones | PUT | `/me/push-token` (registrar Expo Push Token) |
 | Cronograma | GET/POST | `/projects/:projectId/schedule-uploads` |
+| Cronograma import | POST | `/projects/:projectId/schedule-imports/preview` (multipart `file`) |
+| Cronograma import | POST | `/projects/:projectId/schedule-imports/import` (multipart `file` + opciones) |
 
 Cabecera típica: `Authorization: Bearer <access_token>`.
 
@@ -116,7 +118,7 @@ Cabecera típica: `Authorization: Bearer <access_token>`.
 - **Subida real de archivos** (S3 / Cloudflare R2 / GridFS): ahora evidencias y cronograma guardan **URL** ya subida desde el cliente o un servicio intermedio.
 - **Jobs** (BullMQ / cron): alertas por `planned.end`, regeneración PPC recurrente, emails/push.
 - **Semanas en zona horaria del proyecto** (`project.timezone`).
-- **Parser de MS Project / Excel** para poblar `activities` desde `schedule-uploads`.
+- **Parser MS Project (.mpp)** — Excel vía `schedule-imports` ya disponible (ver plantilla en `assets/schedule-import-plantilla.tsv`).
 - **Rate limiting**, **helmet**, **rotación de JWT**, **refresh tokens**.
 - **Tests e2e** por flujo crítico.
 

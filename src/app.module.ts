@@ -24,6 +24,7 @@ import { LookaheadModule } from './lookahead/lookahead.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ScheduleUploadsModule } from './schedule-uploads/schedule-uploads.module';
+import { ScheduleImportsModule } from './schedule-imports/schedule-imports.module';
 import { SetupModule } from './setup/setup.module';
 
 @Module({
@@ -60,6 +61,7 @@ import { SetupModule } from './setup/setup.module';
     DashboardModule,
     NotificationsModule,
     ScheduleUploadsModule,
+    ScheduleImportsModule,
   ],
   controllers: [AppController],
   providers: [
