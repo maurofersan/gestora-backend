@@ -170,7 +170,7 @@ function parseDurationDays(value: unknown): number | null {
     .replace(/d[ií]as?/gi, '')
     .trim();
   const num = Number(text);
-  if (!Number.isFinite(num) || num < 1) return null;
+  if (!Number.isFinite(num) || num < 1 || num > 366) return null;
   return Math.round(num);
 }
 

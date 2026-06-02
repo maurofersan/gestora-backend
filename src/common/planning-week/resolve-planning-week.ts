@@ -34,6 +34,52 @@ export function normalizeProjectTimeZone(raw: string | undefined | null): string
   return probe.isValid ? z : 'UTC';
 }
 
+/** Lunes de la semana (calendario local del proyecto) que contiene el instante dado. */
+export function mondayOfInstantInProjectZone(instant: Date, ianaTimeZone: string): DateTime {
+  const zone = normalizeProjectTimeZone(ianaTimeZone);
+  const dt = DateTime.fromJSDate(instant, { zone }).startOf('day');
+  const daysSinceMonday = (dt.weekday + 6) % 7;
+  return dt.minus({ days: daysSinceMonday }).startOf('day');
+}
+
+/**
+ * Fecha civil YYYY-MM-DD desde un Date guardado como medianoche UTC (parser Excel / legacy).
+ */
+export function civilIsoDateFromUtcMidnight(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** planned.end = inicio civil + durationDays (misma regla que create activity). */
+export function plannedEndFromStartAndDuration(
+  start: Date,
+  durationDays: number,
+  ianaTimeZone: string,
+): Date {
+  return addCalendarDaysInProjectZone(start, durationDays, ianaTimeZone);
+}
+
+/**
+ * Lunes (YYYY-MM-DD) de cada semana de planificación que intersecta [planned.start, planned.end].
+ */
+export function weekAnchorsForPlannedWindow(
+  plannedStart: Date,
+  plannedEnd: Date,
+  ianaTimeZone: string,
+): string[] {
+  const zone = normalizeProjectTimeZone(ianaTimeZone);
+  let monday = mondayOfInstantInProjectZone(plannedStart, zone);
+  const lastMonday = mondayOfInstantInProjectZone(plannedEnd, zone);
+  const anchors: string[] = [];
+  while (monday.toMillis() <= lastMonday.toMillis()) {
+    anchors.push(monday.toISODate()!);
+    monday = monday.plus({ weeks: 1 });
+  }
+  return anchors;
+}
+
 /**
  * Interpreta `weekAnchor` como fecha civil YYYY-MM-DD en `ianaTimeZone` (no medianoche UTC).
  * Normaliza al lunes de esa semana ISO (lunes=primer día) en ese mismo calendario local.

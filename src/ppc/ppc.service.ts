@@ -6,6 +6,10 @@ import { Activity, ActivityDocument } from '../activities/schemas/activity.schem
 import { PlanningWeekService } from '../common/planning-week/planning-week.service';
 import { ActivityWorkflowStatus } from '../common/enums/activity-workflow.enum';
 import { ActivityStatusColor } from '../common/enums/activity-color.enum';
+import {
+  mondayOfInstantInProjectZone,
+  weekAnchorsForPlannedWindow,
+} from '../common/planning-week/resolve-planning-week';
 import type { PpcSnapshotResponseDto } from './dto/ppc-snapshot-response.dto';
 import { RegeneratePpcDto } from './dto/regenerate-ppc.dto';
 import { PpcWeekly, PpcWeeklyDocument } from './schemas/ppc-weekly.schema';
@@ -30,7 +34,7 @@ export class PpcService {
   ) {}
 
   async listWeeks(projectId: Types.ObjectId, specialtyId?: Types.ObjectId) {
-    const match: Record<string, unknown> = { projectId };
+    const match: Record<string, unknown> = { projectId, plannedTotal: { $gt: 0 } };
     if (specialtyId) {
       match.specialtyId = specialtyId;
     }
@@ -38,7 +42,7 @@ export class PpcService {
     const tz = await this.planningWeekService.getProjectTimeZone(projectId);
     return dates
       .sort((a, b) => a.getTime() - b.getTime())
-      .map((d) => DateTime.fromJSDate(d, { zone: 'utc' }).setZone(tz).toISODate()!);
+      .map((d) => DateTime.fromJSDate(d, { zone: tz }).toISODate()!);
   }
 
   async getSnapshot(
@@ -136,8 +140,8 @@ export class PpcService {
   }
 
   /**
-   * Recalcula snapshots PPC (y por tanto progress-chart) desde activities.
-   * Tras schedule-import: cubre todas las semanas con actividades planificadas por especialidad.
+   * Recalcula snapshots PPC solo para semanas donde hay actividades planificadas.
+   * Elimina snapshots huérfanos (p. ej. pruebas en 2027–2028).
    */
   async regenerateProjectFromActivities(
     projectId: Types.ObjectId,
@@ -149,34 +153,27 @@ export class PpcService {
 
     let weeksUpserted = 0;
     let weeksRemoved = 0;
+    const keptSnapshotKeys = new Set<string>();
 
     for (const specialtyId of specialtyIds) {
-      const bounds = await this.activityModel
-        .aggregate<{ minStart: Date; maxEnd: Date }>([
-          { $match: { projectId, specialtyId } },
-          {
-            $group: {
-              _id: null,
-              minStart: { $min: '$planned.start' },
-              maxEnd: { $max: '$planned.end' },
-            },
-          },
-        ])
+      const activities = await this.activityModel
+        .find({ projectId, specialtyId })
+        .select('planned.start planned.end')
+        .lean()
         .exec();
 
-      const row = bounds[0];
-      if (!row) continue;
+      const weekAnchors = new Set<string>();
+      for (const activity of activities) {
+        for (const anchor of weekAnchorsForPlannedWindow(
+          activity.planned.start,
+          activity.planned.end,
+          tz,
+        )) {
+          weekAnchors.add(anchor);
+        }
+      }
 
-      const minMonday = this.mondayOfActivityDate(row.minStart, tz);
-      const maxMonday = this.mondayOfActivityDate(row.maxEnd, tz);
-      const keptWeekStarts: Date[] = [];
-
-      for (
-        let cursor = minMonday;
-        cursor.toMillis() <= maxMonday.toMillis();
-        cursor = cursor.plus({ weeks: 1 })
-      ) {
-        const weekAnchor = cursor.toISODate()!;
+      for (const weekAnchor of [...weekAnchors].sort()) {
         const { weekStart, plannedTotal } = await this.upsertWeekSnapshot(
           projectId,
           specialtyId,
@@ -184,7 +181,7 @@ export class PpcService {
         );
 
         if (plannedTotal > 0) {
-          keptWeekStarts.push(weekStart);
+          keptSnapshotKeys.add(this.snapshotKey(specialtyId, weekStart));
           weeksUpserted += 1;
         } else {
           const removed = await this.ppcModel.deleteOne({
@@ -195,12 +192,20 @@ export class PpcService {
           if (removed.deletedCount > 0) weeksRemoved += 1;
         }
       }
+    }
 
-      const orphanResult = await this.ppcModel.deleteMany({
-        projectId,
-        specialtyId,
-        weekStart: { $nin: keptWeekStarts },
-      });
+    const existing = await this.ppcModel
+      .find({ projectId })
+      .select('specialtyId weekStart')
+      .lean()
+      .exec();
+
+    const orphanIds = existing
+      .filter((doc) => !keptSnapshotKeys.has(this.snapshotKey(doc.specialtyId, doc.weekStart)))
+      .map((doc) => doc._id);
+
+    if (orphanIds.length > 0) {
+      const orphanResult = await this.ppcModel.deleteMany({ _id: { $in: orphanIds } });
       weeksRemoved += orphanResult.deletedCount ?? 0;
     }
 
@@ -211,10 +216,8 @@ export class PpcService {
     };
   }
 
-  private mondayOfActivityDate(date: Date, ianaTimeZone: string): DateTime {
-    const dt = DateTime.fromJSDate(date, { zone: ianaTimeZone }).startOf('day');
-    const daysSinceMonday = (dt.weekday + 6) % 7;
-    return dt.minus({ days: daysSinceMonday }).startOf('day');
+  private snapshotKey(specialtyId: Types.ObjectId, weekStart: Date): string {
+    return `${specialtyId.toString()}|${weekStart.getTime()}`;
   }
 
   private async upsertWeekSnapshot(

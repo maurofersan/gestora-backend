@@ -14,6 +14,8 @@ import { PlanningWeekService } from '../common/planning-week/planning-week.servi
 import {
   addCalendarDaysInProjectZone,
   civilDateStringToProjectDayStart,
+  civilIsoDateFromUtcMidnight,
+  plannedEndFromStartAndDuration,
 } from '../common/planning-week/resolve-planning-week';
 import { PpcService } from '../ppc/ppc.service';
 import {
@@ -490,12 +492,12 @@ export class ScheduleImportsService {
   }
 
   private buildPlanned(input: ScheduleImportRowInput, projectTimeZone: string): PlannedWindow {
-    const isoDate = input.fechaInicio.toISOString().slice(0, 10);
+    const isoDate = civilIsoDateFromUtcMidnight(input.fechaInicio);
     const start = civilDateStringToProjectDayStart(isoDate, projectTimeZone);
     return {
       start,
       durationDays: input.duracionDias,
-      end: addCalendarDaysInProjectZone(start, input.duracionDias, projectTimeZone),
+      end: plannedEndFromStartAndDuration(start, input.duracionDias, projectTimeZone),
     };
   }
 
