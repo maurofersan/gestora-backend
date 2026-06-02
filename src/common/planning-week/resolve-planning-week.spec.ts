@@ -25,4 +25,17 @@ describe('planning week vs activity dates', () => {
     expect(anchors.every((a) => a.startsWith('2026-'))).toBe(true);
     expect(anchors.some((a) => a > '2026-12-31')).toBe(false);
   });
+
+  it('filtra semanas futuras respecto al lunes actual', () => {
+    const tz = 'America/Santiago';
+    const currentWeekAnchor = '2026-06-02';
+    const anchors = weekAnchorsForPlannedWindow(
+      civilDateStringToProjectDayStart('2026-04-21', tz),
+      civilDateStringToProjectDayStart('2026-07-08', tz),
+      tz,
+    );
+    const chartPoints = anchors.filter((a) => a <= currentWeekAnchor);
+    expect(chartPoints.every((a) => a <= currentWeekAnchor)).toBe(true);
+    expect(chartPoints.some((a) => a.startsWith('2026-07'))).toBe(false);
+  });
 });

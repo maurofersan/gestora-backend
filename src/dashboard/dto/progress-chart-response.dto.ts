@@ -59,6 +59,17 @@ export class ProgressChartMetaDto {
   horizonEndMonday!: string | null;
 
   @ApiPropertyOptional({
+    description: 'PPC de la semana inmediatamente anterior en la serie (para “vs. semana anterior”)',
+  })
+  previousWeekPpcPercent!: number | null;
+
+  @ApiPropertyOptional({ example: '2026-05-25 — 2026-05-31' })
+  previousWeekLabel!: string | null;
+
+  @ApiProperty({ description: 'Versión del contrato; usar 2+ con meta.points', example: 2 })
+  seriesVersion!: number;
+
+  @ApiPropertyOptional({
     description: 'Presente si se filtró por especialidad',
   })
   specialtyId?: string;

@@ -182,7 +182,7 @@ export class PpcService {
       }
     }
 
-    const points = [...weekStats.entries()]
+    const allPoints = [...weekStats.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([anchor, stats]) => {
         const resolution = resolvePlanningWeekFromAnchor(anchor, tz);
@@ -202,7 +202,14 @@ export class PpcService {
         };
       });
 
+    /** Avance gráfico: solo semanas pasadas + semana calendario actual (sin futuro del plan). */
+    const points = allPoints.filter((p) => p.weekStartMonday <= currentWeekAnchor);
+
     const currentPoint = points.find((p) => p.isCurrentWeek);
+    const previousPoint =
+      currentPoint && points.length > 1
+        ? points[points.indexOf(currentPoint) - 1]
+        : undefined;
 
     return {
       meta: {
@@ -212,8 +219,11 @@ export class PpcService {
         currentWeekPpcPercent: currentPoint?.ppcPercent ?? null,
         currentWeekPlannedTotal: currentPoint?.plannedTotal ?? 0,
         currentWeekCompletedTotal: currentPoint?.completedTotal ?? 0,
+        previousWeekPpcPercent: previousPoint?.ppcPercent ?? null,
+        previousWeekLabel: previousPoint?.weekLabel ?? null,
         horizonStartMonday: points[0]?.weekStartMonday ?? null,
         horizonEndMonday: points[points.length - 1]?.weekStartMonday ?? null,
+        seriesVersion: 2,
         ...(specialtyId ? { specialtyId: specialtyId.toString() } : {}),
       },
       points,
