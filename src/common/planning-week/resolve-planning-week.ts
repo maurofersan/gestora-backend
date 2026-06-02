@@ -8,6 +8,25 @@ export function isValidWeekAnchorString(value: string): boolean {
   return WEEK_ANCHOR_ISO_DATE_PATTERN.test(value);
 }
 
+/** Convierte YYYY-MM-DD civil en la zona del proyecto al instante UTC de inicio de ese día local. */
+export function civilDateStringToProjectDayStart(
+  isoDate: string,
+  ianaTimeZone: string,
+): Date {
+  const zone = normalizeProjectTimeZone(ianaTimeZone);
+  return DateTime.fromISO(isoDate, { zone }).startOf('day').toJSDate();
+}
+
+/** Suma días calendario en la zona del proyecto (misma semántica que planned.durationDays). */
+export function addCalendarDaysInProjectZone(
+  start: Date,
+  days: number,
+  ianaTimeZone: string,
+): Date {
+  const zone = normalizeProjectTimeZone(ianaTimeZone);
+  return DateTime.fromJSDate(start, { zone }).plus({ days }).toJSDate();
+}
+
 /** Valida IANA; si no es reconocida por Luxon, cae a UTC. */
 export function normalizeProjectTimeZone(raw: string | undefined | null): string {
   const z = (raw ?? 'UTC').trim() || 'UTC';

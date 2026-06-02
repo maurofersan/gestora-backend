@@ -14,6 +14,12 @@ import { WorkPackage, WorkPackageDocument } from '../work-packages/schemas/work-
 type ActivityRow = PpcSnapshotResponseDto['workPackages'][number]['activities'][number];
 type WpLite = { name: string; order: number };
 
+export interface PpcProjectRegenerationResult {
+  specialtiesProcessed: number;
+  weeksUpserted: number;
+  weeksRemoved: number;
+}
+
 @Injectable()
 export class PpcService {
   constructor(
@@ -121,18 +127,113 @@ export class PpcService {
   }
 
   async regenerate(projectId: Types.ObjectId, dto: RegeneratePpcDto) {
-    const resolution = await this.planningWeekService.resolveWeekForProject(projectId, dto.weekAnchor);
-    const specialtyId = new Types.ObjectId(dto.specialtyId);
+    await this.upsertWeekSnapshot(
+      projectId,
+      new Types.ObjectId(dto.specialtyId),
+      dto.weekAnchor,
+    );
+    return this.getSnapshot(projectId, new Types.ObjectId(dto.specialtyId), dto.weekAnchor);
+  }
+
+  /**
+   * Recalcula snapshots PPC (y por tanto progress-chart) desde activities.
+   * Tras schedule-import: cubre todas las semanas con actividades planificadas por especialidad.
+   */
+  async regenerateProjectFromActivities(
+    projectId: Types.ObjectId,
+  ): Promise<PpcProjectRegenerationResult> {
+    const tz = await this.planningWeekService.getProjectTimeZone(projectId);
+    const specialtyIds = (await this.activityModel
+      .distinct('specialtyId', { projectId })
+      .exec()) as Types.ObjectId[];
+
+    let weeksUpserted = 0;
+    let weeksRemoved = 0;
+
+    for (const specialtyId of specialtyIds) {
+      const bounds = await this.activityModel
+        .aggregate<{ minStart: Date; maxEnd: Date }>([
+          { $match: { projectId, specialtyId } },
+          {
+            $group: {
+              _id: null,
+              minStart: { $min: '$planned.start' },
+              maxEnd: { $max: '$planned.end' },
+            },
+          },
+        ])
+        .exec();
+
+      const row = bounds[0];
+      if (!row) continue;
+
+      const minMonday = this.mondayOfActivityDate(row.minStart, tz);
+      const maxMonday = this.mondayOfActivityDate(row.maxEnd, tz);
+      const keptWeekStarts: Date[] = [];
+
+      for (
+        let cursor = minMonday;
+        cursor.toMillis() <= maxMonday.toMillis();
+        cursor = cursor.plus({ weeks: 1 })
+      ) {
+        const weekAnchor = cursor.toISODate()!;
+        const { weekStart, plannedTotal } = await this.upsertWeekSnapshot(
+          projectId,
+          specialtyId,
+          weekAnchor,
+        );
+
+        if (plannedTotal > 0) {
+          keptWeekStarts.push(weekStart);
+          weeksUpserted += 1;
+        } else {
+          const removed = await this.ppcModel.deleteOne({
+            projectId,
+            specialtyId,
+            weekStart,
+          });
+          if (removed.deletedCount > 0) weeksRemoved += 1;
+        }
+      }
+
+      const orphanResult = await this.ppcModel.deleteMany({
+        projectId,
+        specialtyId,
+        weekStart: { $nin: keptWeekStarts },
+      });
+      weeksRemoved += orphanResult.deletedCount ?? 0;
+    }
+
+    return {
+      specialtiesProcessed: specialtyIds.length,
+      weeksUpserted,
+      weeksRemoved,
+    };
+  }
+
+  private mondayOfActivityDate(date: Date, ianaTimeZone: string): DateTime {
+    const dt = DateTime.fromJSDate(date, { zone: ianaTimeZone }).startOf('day');
+    const daysSinceMonday = (dt.weekday + 6) % 7;
+    return dt.minus({ days: daysSinceMonday }).startOf('day');
+  }
+
+  private async upsertWeekSnapshot(
+    projectId: Types.ObjectId,
+    specialtyId: Types.ObjectId,
+    weekAnchor: string,
+  ): Promise<{ weekStart: Date; plannedTotal: number }> {
+    const resolution = await this.planningWeekService.resolveWeekForProject(projectId, weekAnchor);
     const { weekStart, weekEnd } = resolution;
 
-    const plannedFilter = {
-      projectId,
-      specialtyId,
-      'planned.start': { $lte: weekEnd },
-      'planned.end': { $gte: weekStart },
-    };
-
-    const activities = await this.activityModel.find(plannedFilter).lean().exec();
+    const activities = await this.activityModel
+      .find({
+        projectId,
+        specialtyId,
+        'planned.start': { $lte: weekEnd },
+        'planned.end': { $gte: weekStart },
+      })
+      .lean()
+      .exec();
 
     const items = activities.map((a) => ({
       activityId: a._id,
@@ -147,23 +248,25 @@ export class PpcService {
     const ppcPercent =
       plannedTotal === 0 ? 0 : Math.round((completedTotal / plannedTotal) * 10000) / 100;
 
-    await this.ppcModel.findOneAndUpdate(
-      { projectId, specialtyId, weekStart },
-      {
-        projectId,
-        specialtyId,
-        weekStart,
-        weekEnd,
-        weekLabel: resolution.weekLabel,
-        plannedTotal,
-        completedTotal,
-        ppcPercent,
-        items,
-        generatedAt: new Date(),
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
+    if (plannedTotal > 0) {
+      await this.ppcModel.findOneAndUpdate(
+        { projectId, specialtyId, weekStart },
+        {
+          projectId,
+          specialtyId,
+          weekStart,
+          weekEnd,
+          weekLabel: resolution.weekLabel,
+          plannedTotal,
+          completedTotal,
+          ppcPercent,
+          items,
+          generatedAt: new Date(),
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+    }
 
-    return this.getSnapshot(projectId, specialtyId, dto.weekAnchor);
+    return { weekStart, plannedTotal };
   }
 }

@@ -151,6 +151,27 @@ for (let i = 1; i <= 105; i++) {
   rows.push([code, desc, partida, sector, esp, fecha, dur].join('\t'));
 }
 
+const dataRows = rows.slice(1).map((line) => line.split('\t'));
+
+const specsByPartida = new Map();
+for (const cols of dataRows) {
+  const partida = cols[2];
+  if (!specsByPartida.has(partida)) specsByPartida.set(partida, new Set());
+  specsByPartida.get(partida).add(cols[4]);
+}
+
+const multiPartidas = new Set(
+  [...specsByPartida.entries()].filter(([, specs]) => specs.size > 1).map(([p]) => p),
+);
+
+const PARTIDA_ESP_SEP = ' — ';
+for (const cols of dataRows) {
+  if (multiPartidas.has(cols[2])) {
+    cols[2] = `${cols[2]}${PARTIDA_ESP_SEP}${cols[4]}`;
+  }
+}
+
 const out = join(__dirname, '..', 'assets', 'schedule-import-plantilla.tsv');
-writeFileSync(out, rows.join('\n'), 'utf8');
-console.log(`Written ${rows.length - 1} data rows to ${out}`);
+writeFileSync(out, [header, ...dataRows.map((c) => c.join('\t'))].join('\n') + '\n', 'utf8');
+console.log(`Written ${dataRows.length} data rows to ${out}`);
+console.log(`Partidas con sufijo por multi-especialidad: ${multiPartidas.size}`);

@@ -9,11 +9,13 @@ import {
   ScheduleUpload,
   ScheduleUploadSchema,
 } from '../schedule-uploads/schemas/schedule-upload.schema';
+import { PpcModule } from '../ppc/ppc.module';
 import { ScheduleImportsController } from './schedule-imports.controller';
 import { ScheduleImportsService } from './schedule-imports.service';
 
 @Module({
   imports: [
+    PpcModule,
     MongooseModule.forFeature([
       { name: Activity.name, schema: ActivitySchema },
       { name: Sector.name, schema: SectorSchema },

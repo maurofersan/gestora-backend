@@ -10,7 +10,12 @@ import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.
 import { UserRole } from '../common/enums/user-role.enum';
 import { ActivityWorkflowStatus } from '../common/enums/activity-workflow.enum';
 import { computeActivityStatusColor } from '../common/utils/activity-status.util';
-import { addCalendarDays } from '../common/utils/date.util';
+import { PlanningWeekService } from '../common/planning-week/planning-week.service';
+import {
+  addCalendarDaysInProjectZone,
+  civilDateStringToProjectDayStart,
+} from '../common/planning-week/resolve-planning-week';
+import { PpcService } from '../ppc/ppc.service';
 import {
   Activity,
   ActivityDocument,
@@ -42,6 +47,7 @@ import type {
   ScheduleImportRowInput,
   ScheduleImportRowResolution,
   ScheduleImportStats,
+  ScheduleImportPpcRegeneration,
 } from './types/schedule-import-row.types';
 import { SCHEDULE_IMPORT_COLUMNS } from './schedule-import.constants';
 
@@ -69,6 +75,8 @@ export class ScheduleImportsService {
     private readonly specialtyModel: Model<SpecialtyDocument>,
     @InjectModel(ScheduleUpload.name)
     private readonly scheduleUploadModel: Model<ScheduleUploadDocument>,
+    private readonly planningWeekService: PlanningWeekService,
+    private readonly ppcService: PpcService,
   ) {}
 
   async preview(
@@ -182,6 +190,7 @@ export class ScheduleImportsService {
 
     const createMissingSectors = options.createMissingSectors ?? true;
     const createMissingWorkPackages = options.createMissingWorkPackages ?? true;
+    const projectTimeZone = await this.planningWeekService.getProjectTimeZone(projectId);
 
     const cache = await this.loadMasterData(projectId);
     const parsed = parseScheduleExcel(file.buffer);
@@ -246,7 +255,7 @@ export class ScheduleImportsService {
           stats,
         );
 
-        const planned = this.buildPlanned(row.input);
+        const planned = this.buildPlanned(row.input, projectTimeZone);
         const existing = cache.activitiesByCode.get(normalizeKey(row.input.codigo));
 
         if (existing) {
@@ -306,7 +315,12 @@ export class ScheduleImportsService {
       scheduleUploadId = upload._id.toString();
     }
 
-    return { scheduleUploadId, stats, errors };
+    let ppcRegeneration: ScheduleImportPpcRegeneration | null = null;
+    if (stats.activitiesCreated + stats.activitiesUpdated > 0) {
+      ppcRegeneration = await this.ppcService.regenerateProjectFromActivities(projectId);
+    }
+
+    return { scheduleUploadId, stats, errors, ppcRegeneration };
   }
 
   private async loadMasterData(projectId: Types.ObjectId): Promise<MasterDataCache> {
@@ -475,12 +489,13 @@ export class ScheduleImportsService {
     return workPackage;
   }
 
-  private buildPlanned(input: ScheduleImportRowInput): PlannedWindow {
-    const start = input.fechaInicio;
+  private buildPlanned(input: ScheduleImportRowInput, projectTimeZone: string): PlannedWindow {
+    const isoDate = input.fechaInicio.toISOString().slice(0, 10);
+    const start = civilDateStringToProjectDayStart(isoDate, projectTimeZone);
     return {
       start,
       durationDays: input.duracionDias,
-      end: addCalendarDays(start, input.duracionDias),
+      end: addCalendarDaysInProjectZone(start, input.duracionDias, projectTimeZone),
     };
   }
 

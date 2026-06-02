@@ -79,8 +79,15 @@ export interface ScheduleImportErrorDetail {
   message: string;
 }
 
+export interface ScheduleImportPpcRegeneration {
+  specialtiesProcessed: number;
+  weeksUpserted: number;
+  weeksRemoved: number;
+}
+
 export interface ScheduleImportResult {
   scheduleUploadId: string | null;
   stats: ScheduleImportStats;
   errors: ScheduleImportErrorDetail[];
+  ppcRegeneration: ScheduleImportPpcRegeneration | null;
 }

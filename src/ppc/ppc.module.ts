@@ -16,5 +16,6 @@ import { PpcController } from './ppc.controller';
   ],
   controllers: [PpcController],
   providers: [PpcService],
+  exports: [PpcService],
 })
 export class PpcModule {}

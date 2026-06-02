@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ScheduleImportStatsDto {
   @ApiProperty()
@@ -28,6 +28,17 @@ export class ScheduleImportErrorDetailDto {
   message: string;
 }
 
+export class ScheduleImportPpcRegenerationDto {
+  @ApiProperty()
+  specialtiesProcessed: number;
+
+  @ApiProperty()
+  weeksUpserted: number;
+
+  @ApiProperty()
+  weeksRemoved: number;
+}
+
 export class ScheduleImportResultDto {
   @ApiProperty({ nullable: true })
   scheduleUploadId: string | null;
@@ -37,4 +48,10 @@ export class ScheduleImportResultDto {
 
   @ApiProperty({ type: [ScheduleImportErrorDetailDto] })
   errors: ScheduleImportErrorDetailDto[];
+
+  @ApiPropertyOptional({
+    type: ScheduleImportPpcRegenerationDto,
+    description: 'Regeneración de snapshots PPC/progress-chart tras importar actividades',
+  })
+  ppcRegeneration?: ScheduleImportPpcRegenerationDto | null;
 }
