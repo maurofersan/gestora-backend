@@ -8,12 +8,14 @@ import { ActivityWorkflowStatus } from '../common/enums/activity-workflow.enum';
 import { ActivityStatusColor } from '../common/enums/activity-color.enum';
 import {
   mondayOfInstantInProjectZone,
+  resolvePlanningWeekFromAnchor,
   weekAnchorsForPlannedWindow,
 } from '../common/planning-week/resolve-planning-week';
 import type { PpcSnapshotResponseDto } from './dto/ppc-snapshot-response.dto';
 import { RegeneratePpcDto } from './dto/regenerate-ppc.dto';
 import { PpcWeekly, PpcWeeklyDocument } from './schemas/ppc-weekly.schema';
 import { WorkPackage, WorkPackageDocument } from '../work-packages/schemas/work-package.schema';
+import type { ProgressChartResponseDto } from '../dashboard/dto/progress-chart-response.dto';
 
 type ActivityRow = PpcSnapshotResponseDto['workPackages'][number]['activities'][number];
 type WpLite = { name: string; order: number };
@@ -137,6 +139,85 @@ export class PpcService {
       dto.weekAnchor,
     );
     return this.getSnapshot(projectId, new Types.ObjectId(dto.specialtyId), dto.weekAnchor);
+  }
+
+  /**
+   * Serie PPC semanal para el gráfico de avance — calculada en vivo desde activities
+   * (no snapshots), una fila por lunes con actividades planificadas.
+   */
+  async computeProgressChartSeries(
+    projectId: Types.ObjectId,
+    specialtyId?: Types.ObjectId,
+  ): Promise<ProgressChartResponseDto> {
+    const tz = await this.planningWeekService.getProjectTimeZone(projectId);
+    const currentWeekAnchor = mondayOfInstantInProjectZone(
+      DateTime.now().setZone(tz).toJSDate(),
+      tz,
+    ).toISODate()!;
+    const currentWeekResolution = resolvePlanningWeekFromAnchor(currentWeekAnchor, tz);
+
+    const activityFilter: Record<string, unknown> = { projectId };
+    if (specialtyId) activityFilter.specialtyId = specialtyId;
+
+    const activities = await this.activityModel
+      .find(activityFilter)
+      .select('planned.start planned.end status')
+      .lean()
+      .exec();
+
+    const weekStats = new Map<string, { plannedTotal: number; completedTotal: number }>();
+
+    for (const activity of activities) {
+      for (const anchor of weekAnchorsForPlannedWindow(
+        activity.planned.start,
+        activity.planned.end,
+        tz,
+      )) {
+        const bucket = weekStats.get(anchor) ?? { plannedTotal: 0, completedTotal: 0 };
+        bucket.plannedTotal += 1;
+        if (activity.status === ActivityWorkflowStatus.DONE) {
+          bucket.completedTotal += 1;
+        }
+        weekStats.set(anchor, bucket);
+      }
+    }
+
+    const points = [...weekStats.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([anchor, stats]) => {
+        const resolution = resolvePlanningWeekFromAnchor(anchor, tz);
+        const ppcPercent =
+          stats.plannedTotal === 0
+            ? 0
+            : Math.round((stats.completedTotal / stats.plannedTotal) * 10000) / 100;
+        return {
+          weekStartMonday: resolution.weekStartMonday,
+          weekLabel: resolution.weekLabel,
+          weekStart: resolution.weekStart.toISOString(),
+          weekEnd: resolution.weekEnd.toISOString(),
+          plannedTotal: stats.plannedTotal,
+          completedTotal: stats.completedTotal,
+          ppcPercent,
+          isCurrentWeek: anchor === currentWeekAnchor,
+        };
+      });
+
+    const currentPoint = points.find((p) => p.isCurrentWeek);
+
+    return {
+      meta: {
+        projectTimeZone: tz,
+        currentWeekAnchor,
+        currentWeekLabel: currentWeekResolution.weekLabel,
+        currentWeekPpcPercent: currentPoint?.ppcPercent ?? null,
+        currentWeekPlannedTotal: currentPoint?.plannedTotal ?? 0,
+        currentWeekCompletedTotal: currentPoint?.completedTotal ?? 0,
+        horizonStartMonday: points[0]?.weekStartMonday ?? null,
+        horizonEndMonday: points[points.length - 1]?.weekStartMonday ?? null,
+        ...(specialtyId ? { specialtyId: specialtyId.toString() } : {}),
+      },
+      points,
+    };
   }
 
   /**

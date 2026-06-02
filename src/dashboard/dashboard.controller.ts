@@ -1,11 +1,12 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { ApiBearerJwt } from '../common/swagger/api-bearer-jwt.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ProjectAccessGuard } from '../common/guards/project-access.guard';
 import { DashboardService } from './dashboard.service';
 import { Types } from 'mongoose';
 import { ProgressChartQueryDto } from './dto/progress-chart-query.dto';
+import { ProgressChartResponseDto } from './dto/progress-chart-response.dto';
 
 @ApiTags('Dashboard')
 @ApiBearerJwt()
@@ -20,6 +21,7 @@ export class DashboardController {
   }
 
   @Get('progress-chart')
+  @ApiOkResponse({ type: ProgressChartResponseDto })
   progressChart(
     @Param('projectId') projectId: string,
     @Query() query: ProgressChartQueryDto,

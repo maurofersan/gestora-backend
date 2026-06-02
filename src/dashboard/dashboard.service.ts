@@ -1,16 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { DateTime } from 'luxon';
 import { Model, Types } from 'mongoose';
 import { Activity, ActivityDocument } from '../activities/schemas/activity.schema';
 import { Duty, DutyDocument } from '../duties/schemas/duty.schema';
 import { Agreement, AgreementDocument } from '../meetings/schemas/agreement.schema';
-import { PpcWeekly, PpcWeeklyDocument } from '../ppc/schemas/ppc-weekly.schema';
 import { DutyStatus } from '../common/enums/duty-status.enum';
 import { AgreementStatus } from '../common/enums/agreement-status.enum';
 import { ActivityStatusColor } from '../common/enums/activity-color.enum';
-import { PlanningWeekService } from '../common/planning-week/planning-week.service';
-import { mondayOfInstantInProjectZone } from '../common/planning-week/resolve-planning-week';
+import { PpcService } from '../ppc/ppc.service';
 
 @Injectable()
 export class DashboardService {
@@ -18,8 +15,7 @@ export class DashboardService {
     @InjectModel(Activity.name) private readonly activityModel: Model<ActivityDocument>,
     @InjectModel(Duty.name) private readonly dutyModel: Model<DutyDocument>,
     @InjectModel(Agreement.name) private readonly agreementModel: Model<AgreementDocument>,
-    @InjectModel(PpcWeekly.name) private readonly ppcModel: Model<PpcWeeklyDocument>,
-    private readonly planningWeekService: PlanningWeekService,
+    private readonly ppcService: PpcService,
   ) {}
 
   async summary(projectId: Types.ObjectId) {
@@ -65,47 +61,8 @@ export class DashboardService {
     };
   }
 
-  async progressChart(projectId: Types.ObjectId, specialtyId?: Types.ObjectId) {
-    const filter: Record<string, unknown> = {
-      projectId,
-      plannedTotal: { $gt: 0 },
-    };
-    if (specialtyId) filter.specialtyId = specialtyId;
-
-    const activityFilter: Record<string, unknown> = { projectId };
-    if (specialtyId) activityFilter.specialtyId = specialtyId;
-
-    const [tz, bounds] = await Promise.all([
-      this.planningWeekService.getProjectTimeZone(projectId),
-      this.activityModel
-        .aggregate<{ minStart: Date; maxEnd: Date }>([
-          { $match: activityFilter },
-          {
-            $group: {
-              _id: null,
-              minStart: { $min: '$planned.start' },
-              maxEnd: { $max: '$planned.end' },
-            },
-          },
-        ])
-        .exec(),
-    ]);
-
-    const docs = await this.ppcModel.find(filter).sort({ weekStart: 1 }).lean().exec();
-
-    const row = bounds[0];
-    if (!row) {
-      return [];
-    }
-
-    const horizonStart = mondayOfInstantInProjectZone(row.minStart, tz).toJSDate();
-    const horizonEnd = mondayOfInstantInProjectZone(row.maxEnd, tz).toJSDate();
-
-    return docs.filter(
-      (doc) =>
-        doc.weekStart.getTime() >= horizonStart.getTime() &&
-        doc.weekStart.getTime() <= horizonEnd.getTime(),
-    );
+  progressChart(projectId: Types.ObjectId, specialtyId?: Types.ObjectId) {
+    return this.ppcService.computeProgressChartSeries(projectId, specialtyId);
   }
 
   async rankingFallas(projectId: Types.ObjectId, limit = 50) {
